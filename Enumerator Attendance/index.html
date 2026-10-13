@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#123238">
+<title>Field Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#123238; --silt:#E8EDEA; --paper:#FFFFFF; --line:#CBD6D1; --muted:#4F6A67;
+    --in:#2E7D4F; --out:#A8660F; --bad:#B42318;
+    --ok-soft:#E3F1E8; --warn-soft:#FBF0DC;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--silt);color:var(--ink);
+    font-family:"Hind Siliguri",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:17px;line-height:1.5;
+    min-height:100vh;padding-bottom:env(safe-area-inset-bottom)}
+  header{background:var(--ink);color:#fff;padding:20px 20px 28px;padding-top:max(20px,env(safe-area-inset-top))}
+  .wrap{max-width:30rem;margin:0 auto}
+  .who{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:15px;opacity:.85}
+  .clock{font-size:clamp(3.4rem,17vw,5rem);font-weight:700;letter-spacing:-.02em;line-height:1;margin:14px 0 4px;
+    font-variant-numeric:tabular-nums}
+  .date{font-size:16px;opacity:.85}
+  main{padding:0 16px 40px;margin-top:-14px}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  h2{font-size:18px;margin:0 0 12px;font-weight:600}
+  label{display:block;font-weight:500;margin-bottom:4px;font-size:15px}
+  input{width:100%;font:inherit;color:inherit;padding:12px 14px;min-height:48px;border:1.5px solid var(--line);
+    border-radius:10px;background:#fff}
+  input:focus,button:focus-visible{outline:3px solid #6AA9B3;outline-offset:2px}
+  .field{margin-bottom:12px}
+  .hint{color:var(--muted);font-size:14px;margin-top:4px}
+  .btn{font:inherit;font-weight:600;border:0;border-radius:12px;min-height:56px;padding:0 20px;width:100%;
+    cursor:pointer;color:#fff;background:var(--ink)}
+  .btn:disabled{background:#9AAAA7;cursor:not-allowed}
+  .btn.in{background:var(--in)} .btn.out{background:var(--out)}
+  .status{padding:12px 14px;border-radius:10px;font-weight:500;margin-bottom:14px;background:var(--warn-soft)}
+  .status.in{background:var(--ok-soft)}
+  .row{display:flex;align-items:center;gap:12px;padding:4px 0 14px}
+  .dot{width:14px;height:14px;border-radius:50%;background:#B9C6C2;flex:none}
+  .dot.good{background:var(--in)} .dot.mid{background:#D99A1E} .dot.bad{background:var(--bad)}
+  .row .t{flex:1;min-width:0} .row small{display:block;color:var(--muted);font-size:14px;line-height:1.35}
+  .count{font-size:28px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+  .msg{padding:12px 14px;border-radius:10px;margin-top:12px;font-weight:500}
+  .msg.err{background:#FBE4E1;color:#7A1A12}
+  .msg.ok{background:var(--ok-soft);color:#1B4D30}
+  .hide{display:none!important}
+  .link{background:none;border:0;color:var(--muted);font:inherit;text-decoration:underline;padding:8px 0;cursor:pointer}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="who"><span id="whoName">Field Attendance</span><span id="whoArea"></span></div>
+    <div class="clock" id="clock">--:--</div>
+    <div class="date" id="date"></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- Sign in -->
+  <section class="card" id="loginCard">
+    <h2>Sign in</h2>
+    <div class="field"><label for="idIn">Enumerator ID</label>
+      <input id="idIn" autocomplete="username" autocapitalize="characters" placeholder="E001"></div>
+    <div class="field"><label for="pinIn">PIN</label>
+      <input id="pinIn" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN"></div>
+    <button class="btn" id="loginBtn">Sign in</button>
+    <div class="msg err hide" id="loginErr" role="alert"></div>
+  </section>
+
+  <!-- Check in / out -->
+  <section id="punchCard" class="hide">
+    <div class="status" id="state">Checking today's status...</div>
+
+    <div class="card">
+      <div class="row">
+        <span class="dot" id="gpsDot"></span>
+        <div class="t"><strong id="gpsTitle">Finding your location</strong>
+          <small id="gpsSub">Allow location when your phone asks.</small></div>
+      </div>
+
+      <div class="field hide" id="countField">
+        <label for="count">Surveys completed today</label>
+        <input id="count" type="number" inputmode="numeric" min="0" max="1000" step="1" placeholder="0">
+        <div class="hint">Enter the total number you finished today. Enter 0 if none.</div>
+      </div>
+
+      <div class="field"><label for="place">Village or ward (optional)</label>
+        <input id="place" placeholder="e.g. Ward 4, Saral"></div>
+      <div class="field" style="margin-bottom:16px"><label for="note">Note (optional)</label>
+        <input id="note" placeholder="Anything the supervisor should know"></div>
+
+      <button class="btn in" id="punchBtn" disabled>Check in</button>
+      <div class="msg hide" id="punchMsg" role="status"></div>
+    </div>
+
+    <div class="card hide" id="totalCard">
+      <div class="hint" style="margin:0 0 4px;text-align:center">Surveys reported today</div>
+      <div class="count" id="totalNum">0</div>
+    </div>
+
+    <button class="link" id="logoutBtn">Sign out</button>
+  </section>
+</main>
+
+<script src="config.js"></script>
+<script>
+var $ = function (id) { return document.getElementById(id); };
+var session = { id: '', pin: '', name: '', area: '', last: null };
+var geo = { lat: null, lng: null, acc: null, at: 0 };
+var watchId = null;
+
+/* ---------- clock ---------- */
+function tick() {
+  var d = new Date();
+  $('clock').textContent = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  $('date').textContent = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+tick(); setInterval(tick, 10000);
+
+/* ---------- storage (safe) ---------- */
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+function drop(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+/* ---------- api ---------- */
+function api(payload) {
+  var url = window.API_URL || '';
+  if (url.indexOf('https://script.google.com/') !== 0) return Promise.reject(new Error('NOT_CONFIGURED'));
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  }).then(function (r) { return r.text(); }).then(function (t) {
+    try { return JSON.parse(t); } catch (err) { throw new Error('BAD_RESPONSE'); }
+  });
+}
+function netMsg(e) {
+  var m = String((e && e.message) || e);
+  if (m === 'NOT_CONFIGURED') return 'The site is not connected yet. Ask your supervisor to set the address in config.js.';
+  if (m === 'BAD_RESPONSE') return 'The server did not answer correctly. Ask your supervisor to check that the Web app access is set to Anyone.';
+  if (/Failed to fetch|Load failed|NetworkError|network/i.test(m)) return 'Could not reach the server. Check your internet connection and try again. If it keeps happening, tell your supervisor.';
+  return m;
+}
+function showMsg(el, text, kind) { el.textContent = text; el.className = 'msg ' + kind; }
+
+/* ---------- sign in ---------- */
+function signIn(id, pin, silent) {
+  $('loginBtn').disabled = true;
+  return api({ action: 'login', id: id, pin: pin }).then(function (res) {
+    $('loginBtn').disabled = false;
+    if (!res.ok) {
+      if (!silent) { $('loginErr').classList.remove('hide'); showMsg($('loginErr'), res.error, 'err'); }
+      drop('att_pin');
+      return;
+    }
+    session = { id: id.toUpperCase(), pin: pin, name: res.name, area: res.area, last: res.today.last };
+    store('att_id', session.id); store('att_pin', pin);
+    enterPunch(res.today);
+  }).catch(function (e) {
+    $('loginBtn').disabled = false;
+    if (silent) return;
+    $('loginErr').classList.remove('hide');
+    showMsg($('loginErr'), netMsg(e), 'err');
+  });
+}
+$('loginBtn').onclick = function () {
+  var id = $('idIn').value.trim(), pin = $('pinIn').value.trim();
+  if (!id || !pin) { $('loginErr').classList.remove('hide'); showMsg($('loginErr'), 'Enter your ID and PIN.', 'err'); return; }
+  signIn(id, pin, false);
+};
+$('pinIn').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('loginBtn').click(); });
+$('logoutBtn').onclick = function () { drop('att_pin'); stopGeo(); location.reload(); };
+
+/* ---------- punch screen ---------- */
+function enterPunch(today) {
+  $('loginCard').classList.add('hide');
+  $('punchCard').classList.remove('hide');
+  $('whoName').textContent = session.name;
+  $('whoArea').textContent = session.area || '';
+  setState(today.last, today.lastTime, today.surveys);
+  startGeo();
+}
+function setState(last, time, surveys) {
+  session.last = last;
+  var st = $('state'), btn = $('punchBtn');
+  var checkingOut = last === 'IN';
+  $('countField').classList.toggle('hide', !checkingOut);
+  if (checkingOut) {
+    st.textContent = 'Checked in at ' + time + '. Enter your survey count and check out when you finish.';
+    st.className = 'status in';
+    btn.textContent = 'Check out'; btn.className = 'btn out';
+  } else if (last === 'OUT') {
+    st.textContent = 'Checked out at ' + time + '. You can check in again if you go back out.';
+    st.className = 'status';
+    btn.textContent = 'Check in'; btn.className = 'btn in';
+  } else {
+    st.textContent = 'You have not checked in today.';
+    st.className = 'status';
+    btn.textContent = 'Check in'; btn.className = 'btn in';
+  }
+  if (typeof surveys === 'number' && last) { $('totalNum').textContent = surveys; $('totalCard').classList.remove('hide'); }
+  refreshReady();
+}
+
+/* ---------- location (required for check-in and check-out) ---------- */
+function startGeo() {
+  if (!navigator.geolocation) { gpsUI('bad', 'Location is not supported', 'Use Chrome or Safari on your phone.'); return; }
+  gpsUI('', 'Finding your location', 'Allow location when your phone asks.');
+  watchId = navigator.geolocation.watchPosition(function (p) {
+    geo = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, at: Date.now() };
+    var a = Math.round(geo.acc);
+    if (a <= 50) gpsUI('good', 'Location found (within ' + a + ' m)', 'Good signal.');
+    else if (a <= 150) gpsUI('mid', 'Location found (within ' + a + ' m)', 'Weak signal. Move to open sky for a better fix.');
+    else gpsUI('mid', 'Location is rough (within ' + a + ' m)', 'Step outside and wait a few seconds.');
+    refreshReady();
+  }, function (err) {
+    var m = err.code === 1 ? 'Location is blocked. Turn it on in browser settings, then reload.' : 'Could not get a location. Check that GPS is on.';
+    gpsUI('bad', 'No location', m); refreshReady();
+  }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+}
+function stopGeo() { if (watchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId); }
+function gpsUI(cls, title, sub) {
+  $('gpsDot').className = 'dot ' + cls; $('gpsTitle').textContent = title; $('gpsSub').textContent = sub;
+}
+/** A fresh reading (the live GPS watch under 10 seconds old, else a new request); falls back to a reading less than 2 minutes old. */
+function freshFix() {
+  return new Promise(function (resolve, reject) {
+    if (!navigator.geolocation) { reject(new Error('Location is not supported on this device.')); return; }
+    if (geo.lat !== null && Date.now() - geo.at < 10000) { resolve(geo); return; }
+    navigator.geolocation.getCurrentPosition(function (p) {
+      geo = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, at: Date.now() };
+      resolve(geo);
+    }, function (err) {
+      if (geo.lat !== null && Date.now() - geo.at < 120000) { resolve(geo); return; }
+      reject(new Error(err.code === 1 ? 'Location is blocked. Turn it on in browser settings, then reload.' : 'Could not get your location. Turn on GPS and try again.'));
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+  });
+}
+
+/* ---------- submit ---------- */
+function countValue() {
+  var v = $('count').value.trim();
+  if (v === '' || !/^\d+$/.test(v)) return null;
+  var n = parseInt(v, 10);
+  return n >= 0 && n <= 1000 ? n : null;
+}
+function refreshReady() {
+  var needCount = session.last === 'IN';
+  $('punchBtn').disabled = !(geo.lat !== null && (!needCount || countValue() !== null));
+}
+$('count').addEventListener('input', refreshReady);
+
+$('punchBtn').onclick = function () {
+  var type = session.last === 'IN' ? 'OUT' : 'IN';
+  var btn = $('punchBtn'), msg = $('punchMsg');
+  var surveys = type === 'OUT' ? countValue() : null;
+  if (type === 'OUT' && surveys === null) { showMsg(msg, 'Enter how many surveys you completed today (0 or more).', 'err'); return; }
+  var label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Getting location...';
+  msg.className = 'msg hide';
+  freshFix().then(function (fix) {
+    btn.textContent = 'Sending...';
+    return api({
+      action: 'punch', id: session.id, pin: session.pin, type: type,
+      lat: fix.lat, lng: fix.lng, accuracy: fix.acc,
+      deviceTime: new Date().toISOString(),
+      place: $('place').value.trim(), note: $('note').value.trim(),
+      surveyCount: surveys
+    });
+  }).then(function (res) {
+    btn.textContent = label;
+    if (!res.ok) { showMsg(msg, res.error, 'err'); refreshReady(); return; }
+    showMsg(msg, (type === 'IN' ? 'Checked in' : 'Checked out') + ' at ' + res.time.slice(0, 5) + '. Saved.', 'ok');
+    $('count').value = '';
+    setState(type, res.time.slice(0, 5), res.surveys);
+  }).catch(function (e) {
+    btn.textContent = label;
+    showMsg(msg, netMsg(e), 'err');
+    refreshReady();
+  });
+};
+
+/* ---------- start ---------- */
+(function init() {
+  var id = load('att_id'), pin = load('att_pin');
+  if (id) $('idIn').value = id;
+  if (id && pin) signIn(id, pin, true);
+})();
+</script>
+</body>
+</html>

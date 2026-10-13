@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attendance Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --ink:#123238; --silt:#E8EDEA; --paper:#fff; --line:#CBD6D1; --muted:#4F6A67;
+    --in:#2E7D4F; --out:#A8660F; --bad:#B42318;
+    --ok-soft:#E3F1E8; --warn-soft:#FBF0DC; --bad-soft:#FBE4E1;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--silt);color:var(--ink);font-family:"Hind Siliguri",system-ui,sans-serif;font-size:16px;line-height:1.45}
+  header{background:var(--ink);color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{margin:0;font-size:20px;font-weight:600}
+  header .sub{opacity:.8;font-size:14px}
+  header button{background:transparent;color:#fff;border-color:rgba(255,255,255,.5)}
+  .page{max-width:1400px;margin:0 auto;padding:20px 24px 48px}
+  input,select,button{font:inherit;color:inherit}
+  input,select{padding:9px 12px;min-height:42px;border:1.5px solid var(--line);border-radius:9px;background:#fff}
+  input:focus,select:focus,button:focus-visible{outline:3px solid #6AA9B3;outline-offset:2px}
+  button{cursor:pointer;min-height:42px;border-radius:9px;border:1.5px solid var(--line);background:#fff;padding:0 16px;font-weight:500}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button:disabled{opacity:.6;cursor:wait}
+  .hide{display:none!important}
+
+  #gate{max-width:24rem;margin:12vh auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px}
+  #gate h2{margin:0 0 14px;font-size:20px}
+  #gate input{width:100%;margin-bottom:12px}
+  #gateErr{background:var(--bad-soft);color:#7A1A12;padding:10px 12px;border-radius:9px;margin-top:12px}
+
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px}
+  .tile{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .tile b{display:block;font-size:34px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums}
+  .tile span{color:var(--muted);font-size:14px}
+  .tile.in b{color:var(--in)} .tile.warn b{color:var(--out)} .tile.bad b{color:var(--bad)}
+  #absent{margin-bottom:16px;color:var(--muted);font-size:14.5px}
+  #absent strong{color:var(--ink)}
+
+  .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:16px}
+  .filters label{display:block;font-size:13.5px;color:var(--muted);margin-bottom:3px}
+  .filters .grow{flex:1;min-width:150px} .filters .grow input{width:100%}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+  @media (max-width:1100px){.grid{grid-template-columns:1fr}}
+  .side{display:grid;gap:16px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .panel h2{margin:0;padding:12px 16px;font-size:16px;font-weight:600;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+  .panel h2 .meta{font-weight:400;color:var(--muted)}
+  .scroll{overflow:auto;max-height:72vh}
+  table{border-collapse:collapse;width:100%;font-size:14.5px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid #E3EAE6;vertical-align:middle;white-space:nowrap}
+  th{position:sticky;top:0;background:#F4F7F5;font-weight:600;z-index:1}
+  td.num,th.num{font-variant-numeric:tabular-nums;text-align:right}
+  .who b{display:block;font-weight:600} .who small{color:var(--muted)}
+  .time{font-weight:600;font-variant-numeric:tabular-nums}
+  .time.in{color:var(--in)} .time.out{color:var(--out)}
+  .none{color:#8A9C98}
+  a.map{font-size:13px;color:#1B5E73}
+  .surveys{font-weight:700}
+  .tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12.5px;font-weight:500;background:var(--warn-soft);color:#7A4A06;margin-right:4px}
+  .tag.bad{background:var(--bad-soft);color:#7A1A12}
+  .empty{padding:30px 16px;text-align:center;color:var(--muted)}
+  #map{height:380px}
+  .legend{padding:10px 16px;font-size:13.5px;color:var(--muted);display:flex;gap:16px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+  #sumWrap{max-height:300px;overflow:auto}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Attendance dashboard</h1>
+    <div class="sub" id="stamp">Enumerator check-ins and survey counts</div>
+  </div>
+  <button id="signOut" class="hide">Sign out</button>
+</header>
+
+<div id="gate">
+  <h2>Admin sign in</h2>
+  <input id="keyIn" type="password" placeholder="Admin key" autocomplete="current-password">
+  <button class="primary" id="gateBtn" style="width:100%">Open dashboard</button>
+  <div id="gateErr" class="hide" role="alert"></div>
+</div>
+
+<div class="page hide" id="app">
+  <div class="tiles">
+    <div class="tile in"><b id="tIn">0</b><span>Checked in now</span></div>
+    <div class="tile"><b id="tDone">0</b><span>Finished today</span></div>
+    <div class="tile warn"><b id="tAbsent">0</b><span>Not in yet today</span></div>
+    <div class="tile in"><b id="tSurv">0</b><span>Surveys today</span></div>
+    <div class="tile bad"><b id="tFlag">0</b><span>Rows with flags</span></div>
+  </div>
+  <div id="absent"></div>
+
+  <div class="filters">
+    <div><label for="from">From</label><input type="date" id="from"></div>
+    <div><label for="to">To</label><input type="date" id="to"></div>
+    <div><label for="fPerson">Enumerator</label><select id="fPerson"><option value="">Everyone</option></select></div>
+    <div><label for="fArea">Area</label><select id="fArea"><option value="">All areas</option></select></div>
+    <div class="grow"><label for="q">Search</label><input id="q" placeholder="Name, ID or place"></div>
+    <button class="primary" id="reload">Load</button>
+    <button id="csv">Download CSV</button>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2><span>Attendance</span><span class="meta" id="count"></span></h2>
+      <div class="scroll">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Enumerator</th><th>Check-in</th><th>Check-out</th><th class="num">Hours</th><th class="num">Surveys</th><th>Flags</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty hide" id="empty">No check-ins in this range.</div>
+      </div>
+    </section>
+
+    <div class="side">
+      <section class="panel">
+        <h2><span>Surveys by enumerator</span><span class="meta" id="sumMeta"></span></h2>
+        <div id="sumWrap">
+          <table>
+            <thead><tr><th>Enumerator</th><th class="num">Days</th><th class="num">Surveys</th><th class="num">Per day</th></tr></thead>
+            <tbody id="sumRows"></tbody>
+          </table>
+          <div class="empty hide" id="sumEmpty">No survey counts yet.</div>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>Locations</h2>
+        <div id="map"></div>
+        <div class="legend"><span><i style="background:#2E7D4F"></i>Check-in</span><span><i style="background:#A8660F"></i>Check-out</span></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="config.js"></script>
+<script>
+var $ = function (id) { return document.getElementById(id); };
+var ADMIN_KEY = '';
+var raw = [], people = [], sessions = [], shown = [];
+var map = null, layer = null;
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function today() {
+  var d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function toDate(s) { return new Date(String(s).replace(' ', 'T') + '+06:00'); }
+function hm(s) { return String(s).slice(11, 16); }
+function num(v) { return (v === '' || v == null || !isFinite(Number(v))) ? null : Number(v); }
+
+function api(payload) {
+  var url = window.API_URL || '';
+  if (url.indexOf('https://script.google.com/') !== 0) return Promise.reject(new Error('NOT_CONFIGURED'));
+  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) })
+    .then(function (r) { return r.text(); }).then(function (t) {
+      try { return JSON.parse(t); } catch (err) { throw new Error('BAD_RESPONSE'); }
+    });
+}
+function netMsg(e) {
+  var m = String((e && e.message) || e);
+  if (m === 'NOT_CONFIGURED') return 'The site is not connected yet. Set the address in config.js first.';
+  if (m === 'BAD_RESPONSE') return 'The server did not answer correctly. Check that the Web app access is set to Anyone.';
+  if (/Failed to fetch|Load failed|NetworkError|network/i.test(m)) return 'Could not reach the server. Check your internet connection and try again.';
+  return m;
+}
+
+/* ---------- sign in ---------- */
+function openApp() { $('gate').classList.add('hide'); $('app').classList.remove('hide'); $('signOut').classList.remove('hide'); }
+$('gateBtn').onclick = function () {
+  var key = $('keyIn').value.trim(); if (!key) return;
+  $('from').value = $('to').value = today();
+  fetchData(key).then(function (ok) {
+    if (ok) { try { sessionStorage.setItem('adm_key', key); } catch (e) {} openApp(); }
+  });
+};
+$('keyIn').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('gateBtn').click(); });
+$('signOut').onclick = function () { try { sessionStorage.removeItem('adm_key'); } catch (e) {} location.reload(); };
+
+/* ---------- data ---------- */
+function fetchData(key) {
+  var k = key || ADMIN_KEY;
+  $('reload').disabled = true;
+  return api({ action: 'list', key: k, from: $('from').value, to: $('to').value }).then(function (res) {
+    $('reload').disabled = false;
+    if (!res.ok) { gateError(res.error); return false; }
+    ADMIN_KEY = k; raw = res.rows; people = res.enumerators;
+    fillFilters(); build();
+    $('stamp').textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return true;
+  }).catch(function (e) {
+    $('reload').disabled = false; gateError(netMsg(e)); return false;
+  });
+}
+function gateError(t) {
+  var g = $('gateErr'); g.textContent = t; g.classList.remove('hide');
+  if (!$('app').classList.contains('hide')) alert(t);
+}
+$('reload').onclick = function () { fetchData(); };
+
+function fillFilters() {
+  var p = $('fPerson'), a = $('fArea'), pv = p.value, av = a.value;
+  p.innerHTML = '<option value="">Everyone</option>' + people.map(function (x) {
+    return '<option value="' + esc(x.id) + '">' + esc(x.name) + ' (' + esc(x.id) + ')</option>';
+  }).join('');
+  var areas = Array.from(new Set(people.map(function (x) { return x.area; }).filter(Boolean)));
+  a.innerHTML = '<option value="">All areas</option>' + areas.map(function (x) { return '<option>' + esc(x) + '</option>'; }).join('');
+  p.value = pv; a.value = av;
+}
+
+/* ---------- pair each check-in with the next check-out ---------- */
+function build() {
+  var groups = {};
+  raw.forEach(function (r) {
+    var k = String(r.EnumeratorID).toUpperCase() + '|' + r.Date;
+    (groups[k] = groups[k] || []).push(r);
+  });
+  sessions = [];
+  Object.keys(groups).forEach(function (k) {
+    var list = groups[k].sort(function (a, b) { return a.ServerTime < b.ServerTime ? -1 : 1; });
+    var open = null;
+    list.forEach(function (r) {
+      var base = { date: r.Date, id: String(r.EnumeratorID).toUpperCase(), name: r.Name, area: r.Area };
+      if (r.Type === 'IN') { open = Object.assign({ inn: r, out: null }, base); sessions.push(open); }
+      else if (open && !open.out) { open.out = r; open = null; }
+      else { sessions.push(Object.assign({ inn: null, out: r }, base)); }
+    });
+  });
+  sessions.forEach(function (s) {
+    s.flags = flagsFor(s); s.hours = hoursFor(s);
+    s.surveys = s.out ? num(s.out.SurveyCount) : null;
+  });
+  sessions.sort(function (a, b) {
+    var ta = (a.inn || a.out).ServerTime, tb = (b.inn || b.out).ServerTime; return ta < tb ? 1 : -1;
+  });
+  render();
+}
+function flagsFor(s) {
+  var f = [];
+  [s.inn, s.out].forEach(function (r) {
+    if (!r) return;
+    if (Number(r.AccuracyM) > 100 && f.indexOf('Weak GPS') < 0) f.push('Weak GPS');
+    var dev = new Date(r.DeviceTime), srv = toDate(r.ServerTime);
+    if (!isNaN(dev) && Math.abs(dev - srv) > 5 * 60000 && f.indexOf('Phone clock off') < 0) f.push('Phone clock off');
+  });
+  if (s.inn && !s.out && s.date < today()) f.push('No check-out');
+  if (!s.inn) f.push('No check-in');
+  return f;
+}
+function hoursFor(s) {
+  if (!s.inn || !s.out) return null;
+  return (toDate(s.out.ServerTime) - toDate(s.inn.ServerTime)) / 3600000;
+}
+
+/* ---------- render ---------- */
+function filtered() {
+  var pid = $('fPerson').value, area = $('fArea').value, q = $('q').value.trim().toLowerCase();
+  return sessions.filter(function (s) {
+    if (pid && s.id !== pid) return false;
+    if (area && s.area !== area) return false;
+    if (q) {
+      var place = ((s.inn && s.inn.Place) || (s.out && s.out.Place) || '');
+      if ((s.name + ' ' + s.id + ' ' + place).toLowerCase().indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+}
+function punchCell(r, cls) {
+  if (!r) return '<span class="none">-</span>';
+  var link = 'https://www.google.com/maps?q=' + encodeURIComponent(r.Lat + ',' + r.Lng);
+  return '<div class="time ' + cls + '">' + hm(r.ServerTime) + '</div>' +
+    '<a class="map" target="_blank" rel="noopener" href="' + link + '">Map (' + Math.round(r.AccuracyM) + ' m)</a>';
+}
+function render() {
+  shown = filtered();
+  $('rows').innerHTML = shown.map(function (s) {
+    var place = (s.inn && s.inn.Place) || (s.out && s.out.Place) || '';
+    return '<tr><td class="num" style="text-align:left">' + esc(s.date) + '</td>' +
+      '<td class="who"><b>' + esc(s.name) + '</b><small>' + esc(s.id) + ' · ' + esc(s.area) + (place ? ' · ' + esc(place) : '') + '</small></td>' +
+      '<td>' + punchCell(s.inn, 'in') + '</td><td>' + punchCell(s.out, 'out') + '</td>' +
+      '<td class="num">' + (s.hours === null ? '<span class="none">-</span>' : s.hours.toFixed(1) + ' h') + '</td>' +
+      '<td class="num">' + (s.surveys === null ? '<span class="none">-</span>' : '<span class="surveys">' + s.surveys + '</span>') + '</td>' +
+      '<td>' + s.flags.map(function (x) { return '<span class="tag' + (x.indexOf('No ') === 0 ? ' bad' : '') + '">' + esc(x) + '</span>'; }).join('') + '</td></tr>';
+  }).join('');
+  $('empty').classList.toggle('hide', shown.length > 0);
+  var total = shown.reduce(function (a, s) { return a + (s.surveys || 0); }, 0);
+  $('count').textContent = shown.length + (shown.length === 1 ? ' row' : ' rows') + ' · ' + total + (total === 1 ? ' survey' : ' surveys');
+  tiles(); summary(); drawMap();
+}
+['fPerson', 'fArea'].forEach(function (id) { $(id).onchange = render; });
+$('q').oninput = render;
+
+function tiles() {
+  var t = today();
+  var todays = sessions.filter(function (s) { return s.date === t; });
+  var seen = {}; todays.forEach(function (s) { seen[s.id] = 1; });
+  var absent = people.filter(function (p) { return !seen[String(p.id).toUpperCase()]; });
+  $('tIn').textContent = todays.filter(function (s) { return s.inn && !s.out; }).length;
+  $('tDone').textContent = todays.filter(function (s) { return s.inn && s.out; }).length;
+  $('tAbsent').textContent = absent.length;
+  $('tSurv').textContent = todays.reduce(function (a, s) { return a + (s.surveys || 0); }, 0);
+  $('tFlag').textContent = shown.filter(function (s) { return s.flags.length; }).length;
+  $('absent').innerHTML = absent.length
+    ? '<strong>Not in yet today:</strong> ' + absent.map(function (p) { return esc(p.name); }).join(', ') : '';
+}
+
+/* surveys per enumerator for the rows currently shown */
+function summary() {
+  var by = {};
+  shown.forEach(function (s) {
+    var o = by[s.id] = by[s.id] || { name: s.name, id: s.id, days: {}, surveys: 0, has: false };
+    o.days[s.date] = 1;
+    if (s.surveys !== null) { o.surveys += s.surveys; o.has = true; }
+  });
+  var list = Object.keys(by).map(function (k) { return by[k]; }).filter(function (o) { return o.has; })
+    .sort(function (a, b) { return b.surveys - a.surveys; });
+  $('sumRows').innerHTML = list.map(function (o) {
+    var d = Object.keys(o.days).length;
+    return '<tr><td class="who"><b>' + esc(o.name) + '</b><small>' + esc(o.id) + '</small></td><td class="num">' + d +
+      '</td><td class="num surveys">' + o.surveys + '</td><td class="num">' + (o.surveys / d).toFixed(1) + '</td></tr>';
+  }).join('');
+  $('sumEmpty').classList.toggle('hide', list.length > 0);
+  $('sumMeta').textContent = list.length ? list.length + (list.length === 1 ? ' person' : ' people') : '';
+}
+
+/* ---------- map ---------- */
+function drawMap() {
+  if (!window.L) { $('map').innerHTML = '<div class="empty">Map could not load. Check your internet.</div>'; return; }
+  if (!map) {
+    map = L.map('map').setView([22.5889, 89.3361], 11);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    layer = L.layerGroup().addTo(map);
+  }
+  layer.clearLayers();
+  var pts = [];
+  shown.forEach(function (s) {
+    [[s.inn, '#2E7D4F'], [s.out, '#A8660F']].forEach(function (pair) {
+      var r = pair[0]; if (!r || !isFinite(r.Lat)) return;
+      var m = L.circleMarker([r.Lat, r.Lng], { radius: 7, color: '#fff', weight: 2, fillColor: pair[1], fillOpacity: 1 }).addTo(layer);
+      m.bindPopup('<b>' + esc(r.Name) + '</b><br>' + esc(r.Type === 'IN' ? 'Check-in' : 'Check-out') + ' ' + esc(hm(r.ServerTime)) + '<br>' + esc(r.Date) +
+        (r.Type === 'OUT' && num(r.SurveyCount) !== null ? '<br>Surveys: ' + esc(r.SurveyCount) : ''));
+      pts.push([r.Lat, r.Lng]);
+    });
+  });
+  if (pts.length) map.fitBounds(pts, { padding: [30, 30], maxZoom: 16 });
+  setTimeout(function () { map.invalidateSize(); }, 50);
+}
+
+/* ---------- CSV ---------- */
+function csvCell(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+$('csv').onclick = function () {
+  var head = ['Date', 'ID', 'Name', 'Area', 'Place', 'CheckIn', 'In_Lat', 'In_Lng', 'In_AccuracyM',
+    'CheckOut', 'Out_Lat', 'Out_Lng', 'Out_AccuracyM', 'Hours', 'Surveys', 'Flags'];
+  var lines = [head.join(',')].concat(shown.map(function (s) {
+    var i = s.inn, o = s.out;
+    return [s.date, s.id, s.name, s.area, (i && i.Place) || (o && o.Place) || '',
+      i ? hm(i.ServerTime) : '', i ? i.Lat : '', i ? i.Lng : '', i ? i.AccuracyM : '',
+      o ? hm(o.ServerTime) : '', o ? o.Lat : '', o ? o.Lng : '', o ? o.AccuracyM : '',
+      s.hours === null ? '' : s.hours.toFixed(2), s.surveys === null ? '' : s.surveys, s.flags.join('; ')].map(csvCell).join(',');
+  }));
+  var blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'attendance_' + $('from').value + '_to_' + $('to').value + '.csv'; a.click();
+};
+
+/* ---------- auto sign-in ---------- */
+(function () {
+  $('from').value = $('to').value = today();
+  var k = ''; try { k = sessionStorage.getItem('adm_key') || ''; } catch (e) {}
+  if (k) fetchData(k).then(function (ok) { if (ok) openApp(); });
+})();
+</script>
+</body>
+</html>
