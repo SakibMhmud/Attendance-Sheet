@@ -4,4 +4,4 @@
  * Keep the quotes. Example:
  *   window.API_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
  */
-window.API_URL = 'https://script.google.com/macros/s/AKfycbyDw2Lpuw-5VfcE-xKjpgvTV4zZ6gErushZeIPkz5LGqp6apKE5YUW7mEpi8liqs1pK/exec';
+window.API_URL = 'https://script.google.com/macros/s/AKfycbwwXNAr-_Zds5miUIWJixT_CQbDWC8jost6a58LLzQODiYy9Mck5wLH13AnHl2sGfZ8/exec';
